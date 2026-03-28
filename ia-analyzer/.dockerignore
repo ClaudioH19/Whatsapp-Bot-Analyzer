@@ -1,0 +1,16 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Not needed during image build because compose mounts ./src at runtime
+src/yolov8n.pt
+src/.env
+
+# Local editor and OS noise
+.vscode/
+Thumbs.db
+Desktop.ini

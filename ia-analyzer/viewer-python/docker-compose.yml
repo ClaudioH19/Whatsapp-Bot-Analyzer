@@ -1,0 +1,15 @@
+services:
+  camara-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: camara-web
+    ports:
+      - "8090:8080"
+    volumes:
+      - ../src/.env:/run/source.env:ro
+    environment:
+      - RTSP_URL=
+      - SOURCE_ENV_FILE=/run/source.env
+      - PORT=8080
+    restart: unless-stopped

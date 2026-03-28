@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Monitoreo — Cámara Portón</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="shell">
+
+    <header class="top">
+      <p class="kicker">▸ SISTEMA DE MONITOREO EN VIVO</p>
+      <h1>Cámara Portón</h1>
+      <p class="hint">Feed de video en tiempo real · Acceso restringido</p>
+    </header>
+
+    <section class="card">
+
+      <div class="status">
+        {% if has_stream %}
+        <span class="dot" id="statusDot"></span>
+        <p id="statusText">SEÑAL ACTIVA</p>
+        {% else %}
+        <span class="dot offline"></span>
+        <p>SIN SEÑAL &mdash; RTSP_URL no configurada</p>
+        {% endif %}
+        <span class="status-label">CAM-01</span>
+        <button class="btn-reload" id="reloadBtn" title="Recargar stream">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"/>
+            <path d="M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          RECARGAR
+        </button>
+      </div>
+
+      <div class="stage">
+
+        <!-- Reload overlay -->
+        <div class="stage-reload-overlay" id="reloadOverlay">
+          <div class="reload-spinner"></div>
+        </div>
+
+        {% if has_stream %}
+        <!-- HUD: arriba-izquierda -->
+        <div class="hud-tl">
+          <span>CAM-01</span><br>
+          <span>PORTÓN PRINCIPAL</span>
+        </div>
+
+        <!-- HUD: arriba-derecha (reloj en vivo) -->
+        <div class="hud-tr"></div>
+
+        <!-- HUD: abajo-izquierda -->
+        <div class="hud-bl" id="hudBL">REC ●</div>
+
+        <!-- HUD: abajo-derecha -->
+        <div class="hud-br">1920×1080 · H.264</div>
+
+        <img id="videoStream" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="Video en vivo" />
+
+        {% else %}
+
+        <!-- HUD corners aún visibles en modo offline -->
+        <div class="hud-tl">CAM-01 · OFFLINE</div>
+        <div class="hud-tr"></div>
+
+        <div class="fallback">
+          <div class="fallback-inner">
+            <span class="fallback-icon">⬡</span>
+            <span class="fallback-msg">Sin stream configurado</span>
+            <span class="fallback-sub">Defina RTSP_URL en la configuración del servidor</span>
+          </div>
+        </div>
+
+        {% endif %}
+
+      </div><!-- .stage -->
+
+    </section><!-- .card -->
+
+  </main>
+
+  <script>
+
+    /* REC parpadeante */
+    const rec = document.getElementById('hudBL');
+    if (rec) setInterval(() => {
+      rec.style.opacity = rec.style.opacity === '0.15' ? '0.85' : '0.15';       
+    }, 900);
+
+    /* Boton de recarga & WebSocket */
+    const reloadBtn     = document.getElementById('reloadBtn');
+    const reloadOverlay = document.getElementById('reloadOverlay');
+    const feedImg       = document.getElementById('videoStream');
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const desktopFeedUrl = '/video_feed?q=70&w=0&d=0.04&t=';
+    const mobileFeedUrl = '/video_feed_mobile?t=';
+    const initialFeedUrl = isMobile ? mobileFeedUrl : desktopFeedUrl;
+    let fallbackMode = false;
+    
+    let ws = null;
+
+    function connectWS() {
+        if (!feedImg) return;
+        if (fallbackMode) return;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws_video`;
+
+        if (ws) ws.close();
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            if (reloadBtn) {
+                reloadBtn.classList.remove('spinning');
+                reloadBtn.disabled = false;
+            }
+            if (reloadOverlay) reloadOverlay.classList.remove('active');
+        };
+
+        ws.onmessage = (event) => {
+          if (event.data === 'closed') {
+            fallbackMode = true;
+            feedImg.src = '/video_feed?t=' + Date.now();
+            return;
+          }
+            feedImg.src = 'data:image/jpeg;base64,' + event.data;
+        };
+
+        ws.onclose = () => {
+          if (!fallbackMode) {
+            console.log('WebSocket cerrado, cambiando a MJPEG fallback...');
+            fallbackMode = true;
+            feedImg.src = '/video_feed?t=' + Date.now();
+          }
+        };
+
+        ws.onerror = () => {
+          if (!fallbackMode) {
+            fallbackMode = true;
+            feedImg.src = '/video_feed?t=' + Date.now();
+          }
+        };
+    }
+
+    if (feedImg) {
+      // Always start with MJPEG. On mobile we keep this mode to avoid network buffering.
+      feedImg.src = initialFeedUrl + Date.now();
+      if (!isMobile) {
+        connectWS();
+      }
+    }
+
+    if (reloadBtn && feedImg) {
+      reloadBtn.addEventListener('click', () => {
+        reloadBtn.classList.add('spinning');
+        reloadBtn.disabled = true;
+        if (reloadOverlay) reloadOverlay.classList.add('active');
+        feedImg.src = initialFeedUrl + Date.now();
+        if (!isMobile) {
+          fallbackMode = false;
+          connectWS();
+        }
+        setTimeout(() => {
+          reloadBtn.classList.remove('spinning');
+          reloadBtn.disabled = false;
+          if (reloadOverlay) reloadOverlay.classList.remove('active');
+        }, 1200);
+      });
+    }
+  </script>
+</body>
+</html>

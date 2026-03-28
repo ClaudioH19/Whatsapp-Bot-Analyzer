@@ -1,0 +1,5 @@
+flask==2.3.2
+flask-sock==0.6.0
+numpy==1.26.4
+opencv-python-headless==4.8.1.78
+python-dotenv==1.0.1

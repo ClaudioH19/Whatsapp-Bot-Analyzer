@@ -1,0 +1,14 @@
+services:
+  vision-computacional:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vision-computacional
+    working_dir: /app/src
+    command: python main.py
+    env_file:
+      - ./src/.env
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+

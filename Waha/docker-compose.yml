@@ -1,0 +1,11 @@
+services:
+  waha:
+    # Esta es la imagen oficial y pública actualizada
+    image: devlikeapro/waha:latest 
+    container_name: waha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - WAHA_PRINT_QR=true  # Esto te permite ver el QR en los logs de Docker
+      - TZ=America/Santiago
