@@ -1,0 +1,3 @@
+# Ignorar cualquier archivo que empiece por .env en cualquier ruta
+**/.env
+**/.env.*
