@@ -54,7 +54,27 @@ class AnalizadorVideo:
         # 3. Análisis de personas
         personas_detectadas = self._detectar_personas(frame)
 
-        return animales_detectados, estado_porton, personas_detectadas
+        frame_con_boxes = frame.copy()
+        self._dibujar_detecciones(frame_con_boxes, animales_detectados + personas_detectadas)
+
+        return animales_detectados, estado_porton, personas_detectadas, frame_con_boxes
+
+    def _dibujar_detecciones(self, frame, detecciones):
+        for d in detecciones:
+            x1, y1, x2, y2 = d["bbox"]
+            tipo = d["tipo"]
+            confianza = d["confianza"]
+
+            if tipo == "Persona":
+                color = (50, 220, 50)
+            elif tipo == "Auto":
+                color = (255, 160, 0)
+            else:
+                color = (40, 110, 255)
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            etiqueta = f"{tipo} {confianza:.2f}"
+            cv2.putText(frame, etiqueta, (x1, max(20, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
     
     def _detectar_personas(self, frame):
         resultados = self.modelo(frame, classes=self.clases_personas, verbose=False)
@@ -64,10 +84,11 @@ class AnalizadorVideo:
             for box in r.boxes:
                 clase_id=int(box.cls[0])
                 confianza=float(box.conf[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
 
                 if confianza > 0.5:
                     nombre = "Persona" if clase_id == 0 else "Auto" if clase_id == 2 else "Motocicleta"
-                    detectados.append({"tipo": nombre, "confianza": confianza})
+                    detectados.append({"tipo": nombre, "confianza": confianza, "bbox": (x1, y1, x2, y2)})
         return detectados
 
 
@@ -87,11 +108,12 @@ class AnalizadorVideo:
             for box in r.boxes:
                 clase_id = int(box.cls[0])
                 confianza = float(box.conf[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                 
                 # Umbral configurable por entorno para evitar perder animales por baja confianza.
                 if confianza >= self.conf_animales:
                     nombre = self.nombres_animales.get(clase_id, f"Animal-{clase_id}")
-                    detectados.append({"tipo": nombre, "confianza": confianza})
+                    detectados.append({"tipo": nombre, "confianza": confianza, "bbox": (x1, y1, x2, y2)})
                     
         return detectados
 

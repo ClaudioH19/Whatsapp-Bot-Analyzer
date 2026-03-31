@@ -10,30 +10,41 @@ load_dotenv()
 
 # --- Variables Globales ---
 frame_limpio_actual = None
+frame_con_boxes_actual = None
 corriendo = True
 
 def hilo_ia(analizador, notificador):
-    global frame_limpio_actual, corriendo
+    global frame_limpio_actual, frame_con_boxes_actual, corriendo
+    viewer_url = (os.getenv("VIDEO_VIEWER_URL") or "").strip()
+
     while corriendo:
         if frame_limpio_actual is not None:
             # Procesamos
-            animales, estado_porton, personas = analizador.procesar(frame_limpio_actual.copy())
-            
+            animales, estado_porton, personas, frame_con_boxes = analizador.procesar(frame_limpio_actual.copy())
+            frame_con_boxes_actual = frame_con_boxes
+
+            partes = []
             if animales:
                 detalles = ", ".join([f"{a['tipo']} ({a['confianza']:.2f})" for a in animales])
-                notificador.enviar_alerta("animales", f"🐾 Detectado: {detalles}")
+                partes.append(f"🐾 {detalles}")
 
             if personas:
                 detalles = ", ".join([f"{p['tipo']} ({p['confianza']:.2f})" for p in personas])
-                notificador.enviar_alerta("personas", f"👀 Detectado: {detalles}")
+                partes.append(f"👀 {detalles}")
 
             if isinstance(estado_porton, str) and "ABIERTO" in estado_porton:
-                notificador.enviar_alerta("porton", f"🚪 Portón: {estado_porton}")
+                partes.append(f"🚪 {estado_porton}")
+
+            if partes:
+                mensaje = " | ".join(partes)
+                if viewer_url:
+                    mensaje = f"{mensaje} | 🎥 {viewer_url}"
+                notificador.enviar_mensaje(mensaje)
                 
         time.sleep(2)
 
 def iniciar_sistema():
-    global frame_limpio_actual, corriendo
+    global frame_limpio_actual, frame_con_boxes_actual, corriendo
     
     camara = CapturaVideo(os.getenv("RTSP_URL"))
     analizador = AnalizadorVideo()
@@ -41,8 +52,7 @@ def iniciar_sistema():
         api_url=os.getenv("WAHA_URL"), 
         api_key=os.getenv("WAHA_API_KEY"),
         chat_id=os.getenv("WAHA_CHAT_ID"),
-        session_name=os.getenv("WAHA_SESSION", "default"),
-        viewer_url=os.getenv("VIDEO_VIEWER_URL", "")
+        session_name=os.getenv("WAHA_SESSION", "default")
     )
 
     # 1. Hilo de IA
@@ -56,6 +66,8 @@ def iniciar_sistema():
             ret, frame = camara.obtener_frame()
             if ret:
                 frame_limpio_actual = frame
+                if frame_con_boxes_actual is None:
+                    frame_con_boxes_actual = frame
             time.sleep(1.5) 
 
     except KeyboardInterrupt:

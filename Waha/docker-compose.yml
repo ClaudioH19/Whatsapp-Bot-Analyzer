@@ -1,6 +1,7 @@
 services:
   waha:
-    # Esta es la imagen oficial y pública actualizada
+    # La imagen ':latest' incluye Chromium y funciona perfecto para fotos.
+    # Nota: Si en el futuro necesitas enviar/recibir VIDEOS, se recomienda cambiar a 'devlikeapro/waha:chrome'
     image: devlikeapro/waha:latest 
     container_name: waha
     restart: unless-stopped
@@ -9,3 +10,4 @@ services:
     environment:
       - WAHA_PRINT_QR=true  # Esto te permite ver el QR en los logs de Docker
       - TZ=America/Santiago
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
