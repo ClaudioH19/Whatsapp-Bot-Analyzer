@@ -12,34 +12,59 @@ load_dotenv()
 frame_limpio_actual = None
 frame_con_boxes_actual = None
 corriendo = True
+ultimas_alertas = {
+    "animales": 0.0,
+    "personas": 0.0,
+    "porton": 0.0,
+}
+ultimo_envio_general = 0.0
+
+
+def _puede_alertar(tipo_evento, ahora, cooldowns):
+    return (ahora - ultimas_alertas[tipo_evento]) >= cooldowns[tipo_evento]
 
 def hilo_ia(analizador, notificador):
-    global frame_limpio_actual, frame_con_boxes_actual, corriendo
+    global frame_limpio_actual, frame_con_boxes_actual, corriendo, ultimas_alertas, ultimo_envio_general
     viewer_url = (os.getenv("VIDEO_VIEWER_URL") or "").strip()
+    if viewer_url and not viewer_url.startswith(("http://", "https://")):
+        viewer_url = f"http://{viewer_url}"
+
+    cooldowns = {
+        "animales": float(os.getenv("ALERTA_COOLDOWN_ANIMALES", "60")),
+        "personas": float(os.getenv("ALERTA_COOLDOWN_PERSONAS", "60")),
+        "porton": float(os.getenv("ALERTA_COOLDOWN_PORTON", "60")),
+    }
+    cooldown_global = float(os.getenv("ALERTA_COOLDOWN_GLOBAL", "5"))
 
     while corriendo:
         if frame_limpio_actual is not None:
+            ahora = time.time()
             # Procesamos
             animales, estado_porton, personas, frame_con_boxes = analizador.procesar(frame_limpio_actual.copy())
             frame_con_boxes_actual = frame_con_boxes
 
             partes = []
-            if animales:
+            if animales and _puede_alertar("animales", ahora, cooldowns):
                 detalles = ", ".join([f"{a['tipo']} ({a['confianza']:.2f})" for a in animales])
                 partes.append(f"🐾 {detalles}")
+                ultimas_alertas["animales"] = ahora
 
-            if personas:
+            if personas and _puede_alertar("personas", ahora, cooldowns):
                 detalles = ", ".join([f"{p['tipo']} ({p['confianza']:.2f})" for p in personas])
                 partes.append(f"👀 {detalles}")
+                ultimas_alertas["personas"] = ahora
 
-            if isinstance(estado_porton, str) and "ABIERTO" in estado_porton:
+            if isinstance(estado_porton, str) and "ABIERTO" in estado_porton and _puede_alertar("porton", ahora, cooldowns):
                 partes.append(f"🚪 {estado_porton}")
+                ultimas_alertas["porton"] = ahora
 
-            if partes:
+            if partes and (ahora - ultimo_envio_general) >= cooldown_global:
                 mensaje = " | ".join(partes)
                 if viewer_url:
                     mensaje = f"{mensaje} | 🎥 {viewer_url}"
-                notificador.enviar_mensaje(mensaje)
+                if not notificador.enviar_foto(frame_con_boxes, caption=mensaje):
+                    notificador.enviar_mensaje(mensaje)
+                ultimo_envio_general = ahora
                 
         time.sleep(2)
 

@@ -79,8 +79,25 @@ class NotificadorWAHA:
         try:
             respuesta = self._post_waha("/api/sendImage", data)
             if respuesta.status_code in (200, 201):
+                print("[WAHA] Foto enviada correctamente")
                 return True
+
+            # Fallback: algunas versiones de WAHA aceptan imagen base64 como data URL.
+            data_fallback = {
+                "session": self.session_name,
+                "chatId": self.chat_id,
+                "caption": caption,
+                "file": {
+                    "url": f"data:image/jpeg;base64,{imagen_base64}",
+                },
+            }
+            respuesta_fb = self._post_waha("/api/sendImage", data_fallback)
+            if respuesta_fb.status_code in (200, 201):
+                print("[WAHA] Foto enviada correctamente (fallback data URL)")
+                return True
+
             print(f"[WAHA] Error enviando foto: {respuesta.text}")
+            print(f"[WAHA] Error enviando foto (fallback): {respuesta_fb.text}")
             return False
         except requests.exceptions.RequestException as e:
             print(f"[WAHA] No se pudo conectar al contenedor WAHA: {e}")
